@@ -106,8 +106,8 @@ quick-sharun --make-appimage
 mkdir -p dist
 
 # Find the generated AppImage (should be in cwd, name derived from .desktop Name= field)
-SRC_APPIMAGE=$(find . -maxdepth 1 -name "*.AppImage" -type f | head -1)
-SRC_ZSYNC=$(find . -maxdepth 1 -name "*.AppImage.zsync" -type f | head -1)
+SRC_APPIMAGE=$(find . ./dist -maxdepth 1 -name "*.AppImage" -type f 2>/dev/null | head -1)
+SRC_ZSYNC=$(find . ./dist -maxdepth 1 -name "*.AppImage.zsync" -type f | head -1)
 
 if [ -z "$SRC_APPIMAGE" ]; then
     echo "[pkgforge] ERROR: No .AppImage file found in cwd after build"
