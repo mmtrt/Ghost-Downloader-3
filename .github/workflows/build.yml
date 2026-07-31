@@ -444,6 +444,7 @@ jobs:
           gh release upload "v${{ needs.prepare.outputs.version }}" \
             dist/Ghost-Downloader-v${{ needs.prepare.outputs.version }}-Linux-${{ matrix.architecture }}.AppImage \
             dist/Ghost-Downloader-v${{ needs.prepare.outputs.version }}-Linux-${{ matrix.architecture }}.AppImage.zsync \
+            --repo ${{ github.repository }} \
             --clobber
 
   build-android:
