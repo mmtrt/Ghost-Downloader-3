@@ -81,7 +81,51 @@ for item in "$NUITKA_DIST"/*; do
 done
 
 # ------------------------------------------------------------------
-# 5. Verify .desktop at AppDir root
+# 5. Copy ONLY root-level lib*.so* files into AppDir/lib/ so the
+#    AppImage runtime's LD_LIBRARY_PATH can resolve them.
+#    Python extension modules in subdirs (PySide6/, shiboken6/, etc.)
+#    must stay in place — Python's import machinery needs them there.
+# ------------------------------------------------------------------
+echo "[pkgforge] Copying shared libraries into AppDir/lib/..."
+mkdir -p AppDir/lib
+
+for sofile in "$BINDIR"/lib*.so*; do
+    [ -e "$sofile" ] || continue
+    [ -L "$sofile" ] && continue   # skip symlinks, copy real files only
+    cp -L "$sofile" "AppDir/lib/$(basename "$sofile")"
+    echo "[pkgforge] Copied $(basename "$sofile") -> AppDir/lib/"
+done
+
+# Also handle any top-level .so files that aren't lib* (just in case)
+for sofile in "$BINDIR"/*.so*; do
+    [ -e "$sofile" ] || continue
+    basename_so=$(basename "$sofile")
+    case "$basename_so" in
+        lib*) continue ;;  # already handled above
+    esac
+    cp -L "$sofile" "AppDir/lib/$basename_so"
+    echo "[pkgforge] Copied $basename_so -> AppDir/lib/"
+done
+
+# ------------------------------------------------------------------
+# 6. Manually bundle libraries that Qt loads dynamically
+#    (quick-sharun's ldd tracing misses these)
+# ------------------------------------------------------------------
+echo "[pkgforge] Bundling Qt runtime dependencies..."
+for lib in libxcb-cursor.so.0 libxkbcommon-x11.so.0; do
+    libpath=$(find /usr/lib -name "$lib" -type f 2>/dev/null | head -1)
+    if [ -n "$libpath" ]; then
+        if [ ! -e "AppDir/lib/$lib" ]; then
+            cp -L "$libpath" "AppDir/lib/"
+            echo "[pkgforge] Added $lib"
+        fi
+    else
+        echo "[pkgforge] WARNING: $lib not found on build system"
+    fi
+done
+
+# ------------------------------------------------------------------
+# 7. Verify .desktop at AppDir root
 # ------------------------------------------------------------------
 echo "[pkgforge] AppDir top-level files:"
 ls -la AppDir/
@@ -93,25 +137,22 @@ if [ "$desktop_count" -ne 1 ]; then
 fi
 
 # ------------------------------------------------------------------
-# 6. Create anylinux AppImage
+# 8. Create anylinux AppImage
 # ------------------------------------------------------------------
 echo "[pkgforge] Creating anylinux AppImage..."
 quick-sharun --make-appimage
 
 # ------------------------------------------------------------------
-# 7. Rename outputs to match release convention
-#    quick-sharun produces: Ghost_Downloader-4.2.2-anylinux-x86_64.AppImage
-#    We need:               Ghost-Downloader-v4.2.2-Linux-x86_64.AppImage
+# 9. Rename outputs to match release convention
 # ------------------------------------------------------------------
 mkdir -p dist
 
-# Find the generated AppImage (should be in cwd, name derived from .desktop Name= field)
 SRC_APPIMAGE=$(find . ./dist -maxdepth 1 -name "*.AppImage" -type f 2>/dev/null | head -1)
 SRC_ZSYNC=$(find . ./dist -maxdepth 1 -name "*.AppImage.zsync" -type f 2>/dev/null | head -1)
 
 if [ -z "$SRC_APPIMAGE" ]; then
-    echo "[pkgforge] ERROR: No .AppImage file found in cwd after build"
-    ls -la
+    echo "[pkgforge] ERROR: No .AppImage file found"
+    ls -la dist/
     exit 1
 fi
 
